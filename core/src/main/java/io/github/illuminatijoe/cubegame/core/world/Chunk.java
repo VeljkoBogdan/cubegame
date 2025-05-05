@@ -28,17 +28,19 @@ public class Chunk {
         this.chunkPos = chunkPos;
 
         // populate the map
-        for (int i = 15; i < Constants.CHUNK_SIZE; i++) {
-            for (int j = 15; j < Constants.CHUNK_SIZE; j++) {
-                for (int k = 15; k < Constants.CHUNK_SIZE; k++) {
+        for (int i = 0; i < Constants.CHUNK_SIZE; i++) {
+            for (int j = 0; j < Constants.CHUNK_SIZE; j++) {
+                for (int k = 0; k < Constants.CHUNK_SIZE; k++) {
                     Block block = new Block(Main.blockModel);
-                    blockMap.put(new Vector3(i,j,k), block);
+                    blockMap.put(new Vector3(i, j, k), block);
                 }
             }
         }
 
         // build mesh
-        mesh = buildMesh();
+        ModelInstance translatedMesh = buildMesh();
+        translatedMesh.transform.translate(chunkPos);
+        mesh = translatedMesh;
     }
 
     public Map<Vector3, Block> getBlockMap() {

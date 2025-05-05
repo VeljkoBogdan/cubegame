@@ -65,19 +65,10 @@ public class Main extends ApplicationAdapter {
 
         player.update(delta);
 
-        modelCache.begin();
-        for (Chunk chunk : world.getChunkMap().values()) {
-            modelCache.add(chunk.getMesh());
-        }
-        modelCache.end();
-
         batch.begin(player.getCamera());
-//            Gdx.gl.glEnable(GL20.GL_CULL_FACE);
-//            Gdx.gl.glCullFace(GL20.GL_BACK);
-//            Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
-//            Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
-
-            batch.render(modelCache, ambientLight);
+            for (Chunk chunk : world.getChunkMap().values()) {
+                batch.render(chunk.getMesh(), ambientLight);
+            }
         batch.end();
 
         spriteBatch.begin();
