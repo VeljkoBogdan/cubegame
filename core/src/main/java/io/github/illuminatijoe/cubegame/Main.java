@@ -29,6 +29,7 @@ public class Main extends ApplicationAdapter {
     private World world;
 
     private Player player;
+    public static int RENDER_DISTANCE = 8;
 
     private BitmapFont font;
     private SpriteBatch spriteBatch;
@@ -74,6 +75,8 @@ public class Main extends ApplicationAdapter {
         Gdx.gl.glDepthFunc(GL20.GL_LESS);
 
             for (Chunk chunk : world.getChunkMap().values()) {
+                if (chunk.getChunkPos().dst(player.getChunkPosition()) > RENDER_DISTANCE) continue;
+
                 BoundingBox chunkBounds = chunk.getBoundingBox();
                 if (player.getCamera().frustum.boundsInFrustum(chunkBounds)) {
                     batch.render(chunk.getMesh(), ambientLight);

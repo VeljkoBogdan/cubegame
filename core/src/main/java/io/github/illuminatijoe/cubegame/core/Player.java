@@ -80,4 +80,17 @@ public class Player {
     public PerspectiveCamera getCamera() {
         return camera;
     }
+
+    public Vector3 getPosition() {
+        return camera.position;
+    }
+
+    public Vector3 getChunkPosition() {
+        Vector3 chunkPos = new Vector3();
+        chunkPos.x = Math.round(getPosition().x / Constants.CHUNK_SIZE);
+        chunkPos.y = Math.round(getPosition().y / Constants.CHUNK_SIZE);
+        chunkPos.z = Math.round(getPosition().z / Constants.CHUNK_SIZE);
+
+        return chunkPos;
+    }
 }

@@ -196,4 +196,8 @@ public class Chunk {
     public BoundingBox getBoundingBox() {
         return boundingBox;
     }
+
+    public Vector3 getChunkPos() {
+        return chunkPos;
+    }
 }
