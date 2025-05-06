@@ -3,24 +3,22 @@ package io.github.illuminatijoe.cubegame;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
+import com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
+import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.ScreenUtils;
 import io.github.illuminatijoe.cubegame.core.Constants;
 import io.github.illuminatijoe.cubegame.core.Player;
 import io.github.illuminatijoe.cubegame.core.world.Chunk;
 import io.github.illuminatijoe.cubegame.core.world.World;
-import io.github.illuminatijoe.cubegame.core.world.block.Block;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class Main extends ApplicationAdapter {
     private ModelBatch batch;
@@ -35,8 +33,12 @@ public class Main extends ApplicationAdapter {
     private BitmapFont font;
     private SpriteBatch spriteBatch;
 
+    public static Texture dirtTexture; // temp
+
     @Override
     public void create() {
+        dirtTexture = new Texture(Gdx.files.internal("textures/blocks/dirt.png"));
+
         modelCache = new ModelCache();
 
         font = new BitmapFont();
@@ -51,8 +53,8 @@ public class Main extends ApplicationAdapter {
 
         ModelBuilder modelBuilder = new ModelBuilder();
         blockModel = modelBuilder.createBox(Constants.BLOCK_SIZE, Constants.BLOCK_SIZE, Constants.BLOCK_SIZE,
-            new Material(ColorAttribute.createDiffuse(Color.WHITE)),
-            VertexAttributes.Usage.Normal | VertexAttributes.Usage.Position);
+            new Material(TextureAttribute.createDiffuse(dirtTexture)),
+            VertexAttributes.Usage.Normal | VertexAttributes.Usage.Position | VertexAttributes.Usage.TextureCoordinates);
 
         world = new World();
     }
@@ -66,8 +68,16 @@ public class Main extends ApplicationAdapter {
         player.update(delta);
 
         batch.begin(player.getCamera());
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glCullFace(GL20.GL_BACK);
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDepthFunc(GL20.GL_LESS);
+
             for (Chunk chunk : world.getChunkMap().values()) {
-                batch.render(chunk.getMesh(), ambientLight);
+                BoundingBox chunkBounds = chunk.getBoundingBox();
+                if (player.getCamera().frustum.boundsInFrustum(chunkBounds)) {
+                    batch.render(chunk.getMesh(), ambientLight);
+                }
             }
         batch.end();
 
@@ -88,5 +98,10 @@ public class Main extends ApplicationAdapter {
         font.dispose();
         spriteBatch.dispose();
         modelCache.dispose();
+        dirtTexture.dispose();
+
+        for (Chunk chunk : world.getChunkMap().values()) {
+            chunk.dispose();
+        }
     }
 }

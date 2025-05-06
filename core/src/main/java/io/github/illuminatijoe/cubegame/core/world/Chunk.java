@@ -1,49 +1,85 @@
 package io.github.illuminatijoe.cubegame.core.world;
 
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
-import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
+import com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute;
 import com.badlogic.gdx.graphics.g3d.utils.MeshPartBuilder;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.math.collision.BoundingBox;
 import io.github.illuminatijoe.cubegame.Main;
 import io.github.illuminatijoe.cubegame.core.Constants;
 import io.github.illuminatijoe.cubegame.core.Direction;
+import io.github.illuminatijoe.cubegame.core.utils.OpenSimplex2S;
+import io.github.illuminatijoe.cubegame.core.utils.Vector3i;
 import io.github.illuminatijoe.cubegame.core.world.block.Block;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class Chunk {
-    private Vector3 chunkPos;
-    private Map<Vector3, Block> blockMap;
+    private final Map<Vector3i, Block> blockMap;
+    private final Vector3 chunkPos;
+    private BoundingBox boundingBox;
+
+    private Model model;
     private ModelInstance mesh;
 
-    public Chunk(Vector3 chunkPos) {
+    public Chunk(Vector3i chunkPos) {
+        this.chunkPos = new Vector3(chunkPos.x, chunkPos.y, chunkPos.z);
         blockMap = new HashMap<>();
-        this.chunkPos = chunkPos;
 
-        // populate the map
-        for (int i = 0; i < Constants.CHUNK_SIZE; i++) {
-            for (int j = 0; j < Constants.CHUNK_SIZE; j++) {
-                for (int k = 0; k < Constants.CHUNK_SIZE; k++) {
-                    Block block = new Block(Main.blockModel);
-                    blockMap.put(new Vector3(i, j, k), block);
+        float frequency = 0.01f;
+        int maxHeight = Constants.CHUNK_SIZE * 2;
+
+        for (int x = 0; x < Constants.CHUNK_SIZE; x++) {
+            for (int z = 0; z < Constants.CHUNK_SIZE; z++) {
+                // Convert world position
+                float worldX = x + chunkPos.x * Constants.CHUNK_SIZE;
+                float worldZ = z + chunkPos.z * Constants.CHUNK_SIZE;
+
+                // Use 2D noise to generate terrain height
+                float rawNoise = OpenSimplex2S.noise2(World.seed, worldX * frequency, worldZ * frequency);
+                rawNoise = (rawNoise + 1f) / 2f; // normalize to [0, 1]
+                int height = (int)(rawNoise * maxHeight);
+
+                for (int y = 0; y < Constants.CHUNK_SIZE; y++) {
+                    float worldY = y + chunkPos.y * Constants.CHUNK_SIZE;
+                    if (worldY <= height) {
+                        blockMap.put(new Vector3i(x, y, z), new Block());
+                    }
                 }
             }
         }
 
         // build mesh
         ModelInstance translatedMesh = buildMesh();
-        translatedMesh.transform.translate(chunkPos);
+        Vector3i vecInt = chunkPos.scl(Constants.CHUNK_SIZE);
+        Vector3 vecFloat = new Vector3(vecInt.x, vecInt.y, vecInt.z);
+        translatedMesh.transform.translate(vecFloat);
         mesh = translatedMesh;
+
+        boundingBox = buildBoundingBox();
     }
 
-    public Map<Vector3, Block> getBlockMap() {
+    private BoundingBox buildBoundingBox() {
+        Vector3 min = new Vector3(
+            chunkPos.x * Constants.CHUNK_SIZE,
+            chunkPos.y * Constants.CHUNK_SIZE,
+            chunkPos.z * Constants.CHUNK_SIZE
+        );
+        Vector3 max = new Vector3(
+            min.x + Constants.CHUNK_SIZE,
+            min.y + Constants.CHUNK_SIZE,
+            min.z + Constants.CHUNK_SIZE
+        );
+        return new BoundingBox(min, max);
+    }
+
+    public Map<Vector3i, Block> getBlockMap() {
         return blockMap;
     }
 
@@ -52,19 +88,19 @@ public class Chunk {
         modelBuilder.begin();
         MeshPartBuilder builder = modelBuilder.part("chunk",
             GL20.GL_TRIANGLES,
-            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal,
-            new Material(ColorAttribute.createDiffuse(Color.WHITE))
+            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
+            new Material(TextureAttribute.createDiffuse(Main.dirtTexture))
         );
 
         for (int x = 0; x < Constants.CHUNK_SIZE; x++) {
             for (int y = 0; y < Constants.CHUNK_SIZE; y++) {
                 for (int z = 0; z < Constants.CHUNK_SIZE; z++) {
-                    Vector3 pos = new Vector3(x, y, z);
+                    Vector3i pos = new Vector3i(x, y, z);
                     Block block = blockMap.get(pos);
                     if (block == null) continue;
 
                     for (Direction dir : Direction.values()) {
-                        Vector3 neighborPos = new Vector3(
+                        Vector3i neighborPos = new Vector3i(
                             x + dir.dx,
                             y + dir.dy,
                             z + dir.dz
@@ -78,7 +114,7 @@ public class Chunk {
             }
         }
 
-        Model model = modelBuilder.end();
+        model = modelBuilder.end();
         return new ModelInstance(model);
     }
 
@@ -151,5 +187,13 @@ public class Chunk {
 
     public ModelInstance getMesh() {
         return mesh;
+    }
+
+    public void dispose() {
+        model.dispose();
+    }
+
+    public BoundingBox getBoundingBox() {
+        return boundingBox;
     }
 }
