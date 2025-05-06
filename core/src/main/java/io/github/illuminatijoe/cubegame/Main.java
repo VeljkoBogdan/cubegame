@@ -29,7 +29,7 @@ public class Main extends ApplicationAdapter {
     private World world;
 
     private Player player;
-    public static int RENDER_DISTANCE = 8;
+    public static int RENDER_DISTANCE = 12;
 
     private BitmapFont font;
     private SpriteBatch spriteBatch;

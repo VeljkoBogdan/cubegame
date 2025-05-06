@@ -17,18 +17,19 @@ import io.github.illuminatijoe.cubegame.core.utils.OpenSimplex2S;
 import io.github.illuminatijoe.cubegame.core.utils.Vector3i;
 import io.github.illuminatijoe.cubegame.core.world.block.Block;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Chunk {
-    private final Map<Vector3i, Block> blockMap;
+    private final Map<Vector3, Block> blockMap;
     private final Vector3 chunkPos;
     private BoundingBox boundingBox;
 
     private Model model;
     private ModelInstance mesh;
 
-    public Chunk(Vector3i chunkPos) {
+    public Chunk(Vector3 chunkPos) {
         this.chunkPos = new Vector3(chunkPos.x, chunkPos.y, chunkPos.z);
         blockMap = new HashMap<>();
 
@@ -49,7 +50,7 @@ public class Chunk {
                 for (int y = 0; y < Constants.CHUNK_SIZE; y++) {
                     float worldY = y + chunkPos.y * Constants.CHUNK_SIZE;
                     if (worldY <= height) {
-                        blockMap.put(new Vector3i(x, y, z), new Block());
+                        blockMap.put(new Vector3(x, y, z), new Block());
                     }
                 }
             }
@@ -57,8 +58,7 @@ public class Chunk {
 
         // build mesh
         ModelInstance translatedMesh = buildMesh();
-        Vector3i vecInt = chunkPos.scl(Constants.CHUNK_SIZE);
-        Vector3 vecFloat = new Vector3(vecInt.x, vecInt.y, vecInt.z);
+        Vector3 vecFloat = chunkPos.scl(Constants.CHUNK_SIZE);
         translatedMesh.transform.translate(vecFloat);
         mesh = translatedMesh;
 
@@ -79,7 +79,7 @@ public class Chunk {
         return new BoundingBox(min, max);
     }
 
-    public Map<Vector3i, Block> getBlockMap() {
+    public Map<Vector3, Block> getBlockMap() {
         return blockMap;
     }
 
@@ -92,41 +92,106 @@ public class Chunk {
             new Material(TextureAttribute.createDiffuse(Main.dirtTexture))
         );
 
-        for (int x = 0; x < Constants.CHUNK_SIZE; x++) {
-            for (int y = 0; y < Constants.CHUNK_SIZE; y++) {
-                for (int z = 0; z < Constants.CHUNK_SIZE; z++) {
-                    Vector3i pos = new Vector3i(x, y, z);
-                    Block block = blockMap.get(pos);
-                    if (block == null) continue;
-
-                    for (Direction dir : Direction.values()) {
-                        Vector3i neighborPos = new Vector3i(
-                            x + dir.dx,
-                            y + dir.dy,
-                            z + dir.dz
-                        );
-                        Block neighbor = blockMap.get(neighborPos);
-                        if (neighbor == null || neighbor.isTransparent()) {
-                            addFace(builder, x, y, z, dir);
-                        }
-                    }
-                }
-            }
+        for (Direction dir : Direction.values()) {
+            greedyMeshDirection(builder, dir);
         }
 
         model = modelBuilder.end();
         return new ModelInstance(model);
     }
 
-    private void addFace(MeshPartBuilder builder, int x, int y, int z, Direction dir) {
-        float size = 1f;
-        Vector3 p = new Vector3(x, y, z);
+    private void greedyMeshDirection(MeshPartBuilder builder, Direction dir) {
+        int u = (dir.axis + 1) % 3;
+        int v = (dir.axis + 2) % 3;
+        int[] x = new int[3];
+        int[] q = new int[3];
+        q[dir.axis] = 1;
 
-        Vector3[] face = getFaceVertices(p, dir, size);
-        Vector3 normal = getNormal(dir);
+        int size = Constants.CHUNK_SIZE;
 
-        builder.rect(face[0], face[1], face[2], face[3], normal);
+        boolean[] mask = new boolean[size * size];
+
+        for (x[dir.axis] = -1; x[dir.axis] < size; ) {
+            for (x[v] = 0; x[v] < size; ++x[v]) {
+                for (x[u] = 0; x[u] < size; ++x[u]) {
+                    Vector3 current = new Vector3(x[0], x[1], x[2]);
+                    Vector3 neighbor = new Vector3(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
+
+                    boolean currentSolid = x[dir.axis] >= 0 && blockMap.containsKey(current);
+                    boolean neighborSolid = x[dir.axis] < size - 1 && blockMap.containsKey(neighbor);
+
+                    mask[x[u] + x[v] * size] = currentSolid != neighborSolid;
+                }
+            }
+
+            x[dir.axis]++;
+
+            for (int j = 0; j < size; ++j) {
+                for (int i = 0; i < size;) {
+                    int index = i + j * size;
+                    if (mask[index]) {
+                        // Determine width (w)
+                        int w;
+                        for (w = 0; i + w < size && mask[index + w]; ++w);
+
+                        // Determine height (h)
+                        int h;
+                        boolean done = false;
+                        for (h = 1; j + h < size; ++h) {
+                            for (int k = 0; k < w; ++k) {
+                                if (!mask[(i + k) + (j + h) * size]) {
+                                    done = true;
+                                    break;
+                                }
+                            }
+                            if (done) break;
+                        }
+
+                        // x = corner of the quad
+                        x[u] = i;
+                        x[v] = j;
+
+                        int[] du = new int[3];
+                        int[] dv = new int[3];
+                        du[u] = w;
+                        dv[v] = h;
+
+                        // Build quad face from corner point, extending by du and dv
+                        Vector3 p = new Vector3(x[0], x[1], x[2]);
+                        Vector3[] face = new Vector3[]{
+                            new Vector3(p),
+                            new Vector3(p).add(du[0], du[1], du[2]),
+                            new Vector3(p).add(du[0] + dv[0], du[1] + dv[1], du[2] + dv[2]),
+                            new Vector3(p).add(dv[0], dv[1], dv[2])
+                        };
+
+                        // Flip winding order if face is negative direction
+                        if (dir.negative) {
+                            Vector3 tmp = face[3];
+                            face[3] = face[1];
+                            face[1] = tmp;
+                        }
+
+                        // Build the actual face
+                        Vector3 normal = new Vector3(dir.dx, dir.dy, dir.dz);
+                        normal.nor();
+                        builder.rect(face[0], face[1], face[2], face[3], normal);
+
+                        for (int l = 0; l < h; ++l) {
+                            for (int k = 0; k < w; ++k) {
+                                mask[(i + k) + (j + l) * size] = false;
+                            }
+                        }
+
+                        i += w;
+                    } else {
+                        ++i;
+                    }
+                }
+            }
+        }
     }
+
 
     private Vector3 getNormal(Direction dir) {
         return new Vector3(dir.dx, dir.dy, dir.dz).nor(); // normalize just in case
