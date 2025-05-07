@@ -4,6 +4,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.GL31;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.VertexAttributes;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -12,6 +13,7 @@ import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight;
+import com.badlogic.gdx.graphics.g3d.shaders.DefaultShader;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
 import com.badlogic.gdx.math.collision.BoundingBox;
 import com.badlogic.gdx.utils.ScreenUtils;
@@ -63,34 +65,40 @@ public class Main extends ApplicationAdapter {
     @Override
     public void render() {
         ScreenUtils.clear(0f, 0f, 0f, 1f, true);
+        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
+        Gdx.gl.glCullFace(GL20.GL_FRONT_AND_BACK);
+        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
+        Gdx.gl.glDepthFunc(GL20.GL_LEQUAL);
 
         float delta = Gdx.graphics.getDeltaTime();
 
         player.update(delta);
 
         batch.begin(player.getCamera());
-        Gdx.gl.glEnable(GL20.GL_CULL_FACE);
-        Gdx.gl.glCullFace(GL20.GL_BACK);
-        Gdx.gl.glEnable(GL20.GL_DEPTH_TEST);
-        Gdx.gl.glDepthFunc(GL20.GL_LESS);
-
             for (Chunk chunk : world.getChunkMap().values()) {
-                if (chunk.getChunkPos().dst(player.getChunkPosition()) > RENDER_DISTANCE) continue;
+                //if (chunk.getChunkPos().dst(player.getChunkPosition()) > RENDER_DISTANCE) continue;
 
-                BoundingBox chunkBounds = chunk.getBoundingBox();
-                if (player.getCamera().frustum.boundsInFrustum(chunkBounds)) {
+                //BoundingBox chunkBounds = chunk.getBoundingBox();
+                //if (player.getCamera().frustum.boundsInFrustum(chunkBounds)) {
                     batch.render(chunk.getMesh(), ambientLight);
-                }
+                //}
             }
         batch.end();
 
-        spriteBatch.begin();
-            font.draw(spriteBatch, "FPS: " + Gdx.graphics.getFramesPerSecond(), 10, Gdx.graphics.getHeight() - 20);
-            font.draw(spriteBatch, "Heap: " + Gdx.app.getJavaHeap() / 1_000_000 + " MB", 10, Gdx.graphics.getHeight() - 40);
-        spriteBatch.end();
+//        Gdx.gl.glDisable(GL20.GL_CULL_FACE);
+//        Gdx.gl.glDisable(GL20.GL_DEPTH_TEST);
+//        spriteBatch.begin();
+//            font.draw(spriteBatch, "FPS: " + Gdx.graphics.getFramesPerSecond(), 10, Gdx.graphics.getHeight() - 20);
+//            font.draw(spriteBatch, "Heap: " + Gdx.app.getJavaHeap() / 1_000_000 + " MB", 10, Gdx.graphics.getHeight() - 40);
+//        spriteBatch.end();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             Gdx.app.exit();
+        }
+
+        int error = Gdx.gl.glGetError();
+        if (error != GL20.GL_NO_ERROR) {
+            System.out.println("OpenGL error: " + error);
         }
     }
 

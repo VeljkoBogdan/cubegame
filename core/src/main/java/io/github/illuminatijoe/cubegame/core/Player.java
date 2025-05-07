@@ -23,6 +23,7 @@ public class Player {
         camera.far = 300f;
         camera.near = 0.1f;
         updateVectors();
+        camera.update();
 
         Gdx.input.setCursorCatched(true);
     }

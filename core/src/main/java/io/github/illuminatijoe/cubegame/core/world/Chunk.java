@@ -27,7 +27,7 @@ public class Chunk {
     private BoundingBox boundingBox;
 
     private Model model;
-    private ModelInstance mesh;
+    private final ModelInstance mesh;
 
     public Chunk(Vector3 chunkPos) {
         this.chunkPos = new Vector3(chunkPos.x, chunkPos.y, chunkPos.z);
@@ -79,23 +79,18 @@ public class Chunk {
         return new BoundingBox(min, max);
     }
 
-    public Map<Vector3, Block> getBlockMap() {
-        return blockMap;
-    }
-
     public ModelInstance buildMesh() {
         ModelBuilder modelBuilder = new ModelBuilder();
         modelBuilder.begin();
-        MeshPartBuilder builder = modelBuilder.part("chunk",
-            GL20.GL_TRIANGLES,
-            VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
-            new Material(TextureAttribute.createDiffuse(Main.dirtTexture))
-        );
+            MeshPartBuilder builder = modelBuilder.part("chunk",
+                GL20.GL_TRIANGLES,
+                VertexAttributes.Usage.Position | VertexAttributes.Usage.Normal | VertexAttributes.Usage.TextureCoordinates,
+                new Material(TextureAttribute.createDiffuse(Main.dirtTexture))
+            );
 
-        for (Direction dir : Direction.values()) {
-            greedyMeshDirection(builder, dir);
-        }
-
+            for (Direction dir : Direction.values()) {
+                greedyMeshDirection(builder, dir);
+            }
         model = modelBuilder.end();
         return new ModelInstance(model);
     }
@@ -117,8 +112,8 @@ public class Chunk {
                     Vector3 current = new Vector3(x[0], x[1], x[2]);
                     Vector3 neighbor = new Vector3(x[0] + q[0], x[1] + q[1], x[2] + q[2]);
 
-                    boolean currentSolid = x[dir.axis] >= 0 && blockMap.containsKey(current);
-                    boolean neighborSolid = x[dir.axis] < size - 1 && blockMap.containsKey(neighbor);
+                    boolean currentSolid = blockMap.containsKey(current); // x[dir.axis] >= 0 &&
+                    boolean neighborSolid = blockMap.containsKey(neighbor); // x[dir.axis] < size - 1 &&
 
                     mask[x[u] + x[v] * size] = currentSolid != neighborSolid;
                 }
@@ -158,18 +153,15 @@ public class Chunk {
 
                         // Build quad face from corner point, extending by du and dv
                         Vector3 p = new Vector3(x[0], x[1], x[2]);
-                        Vector3[] face = new Vector3[]{
-                            new Vector3(p),
-                            new Vector3(p).add(du[0], du[1], du[2]),
-                            new Vector3(p).add(du[0] + dv[0], du[1] + dv[1], du[2] + dv[2]),
-                            new Vector3(p).add(dv[0], dv[1], dv[2])
-                        };
 
-                        // Flip winding order if face is negative direction
-                        if (dir.negative) {
-                            Vector3 tmp = face[3];
-                            face[3] = face[1];
-                            face[1] = tmp;
+                        // Construct faces in CCW order
+                        Vector3[] face;
+                        if (!dir.negative) {
+                            // Pos direction
+                            face = getVector3s(du, dv, p, du[0], du[1], du[2], dv[0], dv[1], dv[2]);
+                        } else {
+                            // Neg direction
+                            face = getVector3s(dv, dv, p, du[0], du[1], du[2], du[0], du[1], du[2]);
                         }
 
                         // Build the actual face
@@ -177,6 +169,7 @@ public class Chunk {
                         normal.nor();
                         builder.rect(face[0], face[1], face[2], face[3], normal);
 
+                        // invalidate mask
                         for (int l = 0; l < h; ++l) {
                             for (int k = 0; k < w; ++k) {
                                 mask[(i + k) + (j + l) * size] = false;
@@ -192,62 +185,15 @@ public class Chunk {
         }
     }
 
-
-    private Vector3 getNormal(Direction dir) {
-        return new Vector3(dir.dx, dir.dy, dir.dz).nor(); // normalize just in case
-    }
-
-    private Vector3[] getFaceVertices(Vector3 pos, Direction dir, float size) {
-        float x = pos.x;
-        float y = pos.y;
-        float z = pos.z;
-
-        switch (dir) {
-            case UP:
-                return new Vector3[] {
-                    new Vector3(x,     y + size, z),
-                    new Vector3(x,     y + size, z + size),
-                    new Vector3(x + size, y + size, z + size),
-                    new Vector3(x + size, y + size, z)
-                };
-            case DOWN:
-                return new Vector3[] {
-                    new Vector3(x,     y, z),
-                    new Vector3(x + size, y, z),
-                    new Vector3(x + size, y, z + size),
-                    new Vector3(x,     y, z + size)
-                };
-            case NORTH:
-                return new Vector3[] {
-                    new Vector3(x,     y, z),
-                    new Vector3(x,     y + size, z),
-                    new Vector3(x + size, y + size, z),
-                    new Vector3(x + size, y, z)
-                };
-            case SOUTH:
-                return new Vector3[] {
-                    new Vector3(x,     y, z + size),
-                    new Vector3(x + size, y, z + size),
-                    new Vector3(x + size, y + size, z + size),
-                    new Vector3(x,     y + size, z + size)
-                };
-            case EAST:
-                return new Vector3[] {
-                    new Vector3(x + size, y, z),
-                    new Vector3(x + size, y + size, z),
-                    new Vector3(x + size, y + size, z + size),
-                    new Vector3(x + size, y, z + size)
-                };
-            case WEST:
-                return new Vector3[] {
-                    new Vector3(x, y, z),
-                    new Vector3(x, y, z + size),
-                    new Vector3(x, y + size, z + size),
-                    new Vector3(x, y + size, z)
-                };
-            default:
-                return new Vector3[0];
-        }
+    private Vector3[] getVector3s(int[] du, int[] dv, Vector3 p, int i2, int i3, int i4, int i5, int i6, int i7) {
+        Vector3[] face;
+        face = new Vector3[] {
+            new Vector3(p),
+            new Vector3(p).add(du[0], du[1], du[2]),
+            new Vector3(p).add(i2 + dv[0], i3 + dv[1], i4 + dv[2]),
+            new Vector3(p).add(i5, i6, i7)
+        };
+        return face;
     }
 
     public ModelInstance getMesh() {
